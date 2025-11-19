@@ -133,6 +133,91 @@ Search and get AI-generated answers.
 
 Health check endpoint.
 
+## Docker Deployment
+
+### Quick Start with Docker Compose
+
+1. Copy the environment file and add your API keys:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Build and run with Docker Compose:
+   ```bash
+   docker-compose up --build
+   ```
+
+3. Access the application:
+   - Frontend: http://localhost:3000
+   - Backend API: http://localhost:8080
+
+### Production Deployment with Nginx
+
+```bash
+docker-compose --profile production up --build
+```
+
+This will also start an Nginx reverse proxy on port 80.
+
+### Individual Container Builds
+
+**Backend:**
+```bash
+cd backend
+docker build -t search-backend .
+docker run -p 8080:8080 --env-file ../.env search-backend
+```
+
+**Frontend:**
+```bash
+cd frontend
+docker build -t search-frontend .
+docker run -p 3000:3000 -e NEXT_PUBLIC_API_URL=http://localhost:8080 search-frontend
+```
+
+## Deployment Options
+
+### Recommended Platforms
+
+| Platform | Type | Best For |
+|----------|------|----------|
+| **Railway** | PaaS | Easiest deployment, auto-scaling |
+| **Render** | PaaS | Free tier available, simple setup |
+| **Fly.io** | PaaS | Global edge deployment |
+| **DigitalOcean App Platform** | PaaS | Simple container deployment |
+| **AWS ECS/Fargate** | Cloud | Enterprise, full control |
+| **Google Cloud Run** | Cloud | Serverless containers |
+| **Azure Container Apps** | Cloud | Microsoft ecosystem |
+| **Kubernetes** | Self-hosted | Maximum control, complex setup |
+
+### Railway Deployment
+
+1. Connect your GitHub repository
+2. Add environment variables in Railway dashboard
+3. Railway auto-detects Dockerfiles and deploys
+
+### Render Deployment
+
+1. Create a new "Blueprint" from your repo
+2. Render uses `render.yaml` or auto-detects services
+3. Add environment variables in dashboard
+
+### Fly.io Deployment
+
+```bash
+# Install flyctl
+curl -L https://fly.io/install.sh | sh
+
+# Deploy backend
+cd backend
+fly launch
+fly secrets set OPENAI_API_KEY=your-key
+
+# Deploy frontend
+cd frontend
+fly launch
+```
+
 ## Development
 
 ### Demo Mode
