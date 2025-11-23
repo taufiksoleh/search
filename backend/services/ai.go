@@ -15,6 +15,7 @@ import (
 type AIService struct {
 	openAIKey    string
 	anthropicKey string
+	geminiKey    string
 	httpClient   *http.Client
 }
 
@@ -22,6 +23,7 @@ func NewAIService() *AIService {
 	return &AIService{
 		openAIKey:    os.Getenv("OPENAI_API_KEY"),
 		anthropicKey: os.Getenv("ANTHROPIC_API_KEY"),
+		geminiKey:    os.Getenv("GEMINI_API_KEY"),
 		httpClient:   &http.Client{},
 	}
 }
@@ -31,12 +33,15 @@ func (s *AIService) GenerateAnswer(query string, results []models.SearchResult) 
 	// Build context from search results
 	context := s.buildContext(results)
 
-	// Try OpenAI first, then Anthropic, then fallback to mock
+	// Try OpenAI first, then Anthropic, then Gemini, then fallback to mock
 	if s.openAIKey != "" {
 		return s.generateWithOpenAI(query, context)
 	}
 	if s.anthropicKey != "" {
 		return s.generateWithAnthropic(query, context)
+	}
+	if s.geminiKey != "" {
+		return s.generateWithGemini(query, context)
 	}
 
 	// Return mock response for demo
@@ -187,6 +192,85 @@ func (s *AIService) generateWithAnthropic(query, context string) (*models.AIResp
 	}
 
 	answer := anthropicResp.Content[0].Text
+	relatedQs := s.extractRelatedQuestions(answer)
+
+	return &models.AIResponse{
+		Answer:    answer,
+		RelatedQs: relatedQs,
+	}, nil
+}
+
+// generateWithGemini uses Google Gemini API
+func (s *AIService) generateWithGemini(query, context string) (*models.AIResponse, error) {
+	systemPrompt := `You are a helpful AI search assistant. Based on the provided search results, give a comprehensive, accurate answer to the user's query.
+- Cite sources using [1], [2], etc. format
+- Be concise but thorough
+- If information is uncertain, say so
+- At the end, suggest 3 related questions the user might want to explore`
+
+	userPrompt := fmt.Sprintf("Query: %s\n\nSearch Results:\n%s\n\nProvide a helpful answer based on these sources.", query, context)
+
+	// Combine system and user prompts for Gemini
+	fullPrompt := systemPrompt + "\n\n" + userPrompt
+
+	reqBody := map[string]interface{}{
+		"contents": []map[string]interface{}{
+			{
+				"parts": []map[string]interface{}{
+					{"text": fullPrompt},
+				},
+			},
+		},
+		"generationConfig": map[string]interface{}{
+			"temperature":     0.7,
+			"maxOutputTokens": 1000,
+		},
+	}
+
+	jsonBody, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, err
+	}
+
+	// Use Gemini API endpoint with API key as query parameter
+	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=%s", s.geminiKey)
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var geminiResp struct {
+		Candidates []struct {
+			Content struct {
+				Parts []struct {
+					Text string `json:"text"`
+				} `json:"parts"`
+			} `json:"content"`
+		} `json:"candidates"`
+	}
+
+	if err := json.Unmarshal(body, &geminiResp); err != nil {
+		return nil, fmt.Errorf("failed to parse Gemini response: %w", err)
+	}
+
+	if len(geminiResp.Candidates) == 0 || len(geminiResp.Candidates[0].Content.Parts) == 0 {
+		return nil, fmt.Errorf("no response from Gemini")
+	}
+
+	answer := geminiResp.Candidates[0].Content.Parts[0].Text
 	relatedQs := s.extractRelatedQuestions(answer)
 
 	return &models.AIResponse{
