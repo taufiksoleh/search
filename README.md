@@ -96,6 +96,7 @@ The frontend will start on `http://localhost:3000`
 
 - **OpenAI**: Get your API key from [OpenAI Platform](https://platform.openai.com/)
 - **Anthropic Claude**: Get your API key from [Anthropic Console](https://console.anthropic.com/)
+- **Google Gemini**: Get your API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
 
 ## API Endpoints
 
